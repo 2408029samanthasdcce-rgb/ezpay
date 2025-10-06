@@ -1,99 +1,117 @@
-// ====== Show / Hide Pages ======
-function showHome() {
-  hideAllPages();
-  document.getElementById("homePage").classList.remove("hidden");
-}
+let users = {};
+let currentUser = null;
+let transactions = {};
 
 function showRegister() {
-  hideAllPages();
+  document.getElementById("homePage").classList.add("hidden");
   document.getElementById("registerPage").classList.remove("hidden");
 }
 
 function showLogin() {
-  hideAllPages();
+  document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
   document.getElementById("loginPage").classList.remove("hidden");
 }
 
-function showDashboard() {
-  hideAllPages();
-  document.getElementById("dashboardPage").classList.remove("hidden");
-}
-
-function hideAllPages() {
-  document.getElementById("homePage").classList.add("hidden");
-  document.getElementById("registerPage").classList.add("hidden");
-  document.getElementById("loginPage").classList.add("hidden");
-  document.getElementById("dashboardPage").classList.add("hidden");
-}
-
-// ====== Registration ======
-const registerForm = document.getElementById("registerForm");
-registerForm.addEventListener("submit", function(e) {
+// Register
+document.getElementById("registerForm").addEventListener("submit", function(e) {
   e.preventDefault();
+  let name = document.getElementById("regName").value;
+  let email = document.getElementById("regEmail").value;
+  let balance = parseFloat(document.getElementById("regBalance").value);
+  let password = document.getElementById("regPassword").value;
 
-  let users = JSON.parse(localStorage.getItem("users")) || [];
-
-  let newUser = {
-    name: document.getElementById("regName").value.trim(),
-    email: document.getElementById("regEmail").value.trim().toLowerCase(),
-    password: document.getElementById("regPassword").value.trim(),
-    balance: parseFloat(document.getElementById("regBalance").value.trim()) || 0,
-    transactions: []
-  };
-
-  // Check if email already exists
-  if (users.some(u => u.email === newUser.email)) {
-    alert("Email already registered. Please login.");
-    showLogin();
-    return;
-  }
-
-  users.push(newUser);
-  localStorage.setItem("users", JSON.stringify(users));
-  alert("Registration successful! Please login.");
+  users[email] = { name, email, balance, password };
+  transactions[email] = [];
+  alert("Registration Successful!");
   showLogin();
 });
 
-// ====== Login ======
-const loginForm = document.getElementById("loginForm");
-loginForm.addEventListener("submit", function(e) {
+// Login
+document.getElementById("loginForm").addEventListener("submit", function(e) {
   e.preventDefault();
+  let email = document.getElementById("loginEmail").value;
+  let password = document.getElementById("loginPassword").value;
 
-  let users = JSON.parse(localStorage.getItem("users")) || [];
-  let email = document.getElementById("loginEmail").value.trim().toLowerCase();
-  let password = document.getElementById("loginPassword").value.trim();
-
-  let user = users.find(u => u.email === email && u.password === password);
-
-  if (user) {
-    localStorage.setItem("currentUser", JSON.stringify(user));
-    showDashboard();
-    updateDashboard();
+  if(users[email] && users[email].password === password) {
+    currentUser = email;
+    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+    document.getElementById("dashboardPage").classList.remove("hidden");
+    document.getElementById("welcomeMessage").innerText = `Welcome ${users[email].name}`;
   } else {
-    alert("Invalid credentials. Please try again.");
+    alert("Invalid credentials!");
   }
 });
 
-// ====== Update Dashboard ======
-function updateDashboard() {
-  let user = JSON.parse(localStorage.getItem("currentUser"));
-  if (!user) return;
+// Add Money
+function addMoney() {
+  let amount = parseFloat(prompt("Enter amount to add:"));
+  if(!isNaN(amount) && amount > 0) {
+    users[currentUser].balance += amount;
+    addTransaction("Self", "credit", amount);
+    alert(`₹${amount} added successfully!`);
+  }
+}
 
-  document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name}!`;
+// Send Money
+function sendMoney() {
+  let recipient = prompt("Enter recipient name:");
+  let accNo = prompt("Enter 10-digit Account Number:");
+  if(accNo.length !== 10) {
+    alert("Account number must be exactly 10 digits!");
+    return;
+  }
+  let bank = prompt("Enter Bank Name:");
+  let amount = parseFloat(prompt("Enter amount:"));
 
-  // Update transaction history table
-  const historyTable = document.getElementById("historyTable");
-  historyTable.innerHTML = ""; // clear previous rows
+  if(amount > users[currentUser].balance) {
+    alert("Insufficient Balance");
+  } else {
+    users[currentUser].balance -= amount;
+    let txnId = "TXN" + Math.floor(Math.random() * 1000000);
+    addTransaction(recipient, "debit", amount, txnId);
+    alert(`Transaction Successful! ID: ${txnId}`);
+  }
+}
 
-  let last5 = user.transactions.slice(-5).reverse();
-  last5.forEach(tx => {
+function addTransaction(recipient, type, amount, txnId = "TXN" + Date.now()) {
+  let date = new Date().toLocaleString();
+  let record = { recipient, date, type, txnId, amount };
+  transactions[currentUser].unshift(record);
+  if(transactions[currentUser].length > 5) transactions[currentUser].pop();
+}
+
+// Show History
+function showHistory() {
+  let historyTable = document.getElementById("historyTable");
+  historyTable.innerHTML = "";
+  transactions[currentUser].forEach(t => {
     let row = `<tr>
-      <td>${tx.recipient}</td>
-      <td>${tx.date}</td>
-      <td>${tx.type}</td>
-      <td>${tx.id}</td>
-      <td>${tx.amount.toFixed(2)}</td>
+      <td>${t.recipient}</td>
+      <td>${t.date}</td>
+      <td>${t.type}</td>
+      <td>${t.txnId}</td>
+      <td>₹${t.amount}</td>
     </tr>`;
     historyTable.innerHTML += row;
   });
+  document.getElementById("transactionHistory").classList.remove("hidden");
+}
+
+// EMI Calculator
+function showEMI() {
+  document.getElementById("emiCalculator").classList.remove("hidden");
+}
+
+function calculateEMI() {
+  let p = parseFloat(document.getElementById("principal").value);
+  let r = parseFloat(document.getElementById("rate").value) / 12 / 100;
+  let n = parseInt(document.getElementById("tenure").value);
+
+  if(isNaN(p) || isNaN(r) || isNaN(n) || n <= 0) {
+    document.getElementById("emiResult").innerText = "Please enter valid values.";
+    return;
+  }
+
+  let emi = (p * r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+  document.getElementById("emiResult").innerText = `Monthly EMI: ₹${emi.toFixed(2)}`;
 }
